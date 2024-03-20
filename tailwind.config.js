@@ -2,7 +2,11 @@
 export default {
   content: ['./src/**/*.{html,js,svelte,ts}'],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['Cambria', 'serif'], // Add your preferred serif font names here
+      },
+    },
   },
   plugins: [
     require('@tailwindcss/typography'),

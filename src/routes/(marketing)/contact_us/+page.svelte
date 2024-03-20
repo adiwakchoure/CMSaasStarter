@@ -1,23 +1,15 @@
 <script lang="ts">
-  import { enhance, applyAction } from "$app/forms"
-  import type { SubmitFunction } from "@sveltejs/kit"
-
-  let errors: { [fieldName: string]: string } = {}
-  let loading = false
-  let showSuccess = false
+  let canvas: HTMLCanvasElement
+  let ctx: CanvasRenderingContext2D | null = null
+  let writingMode = false
+  let signature: string | null = null
 
   const formFields = [
     {
-      id: "first_name",
-      label: "First Name *",
+      id: "name",
+      label: "Name *",
       inputType: "text",
       autocomplete: "given-name",
-    },
-    {
-      id: "last_name",
-      label: "Last Name *",
-      inputType: "text",
-      autocomplete: "family-name",
     },
     {
       id: "email",
@@ -32,12 +24,6 @@
       autocomplete: "tel",
     },
     {
-      id: "company",
-      label: "Company Name",
-      inputType: "text",
-      autocomplete: "organization",
-    },
-    {
       id: "message",
       label: "Message",
       inputType: "textarea",
@@ -45,112 +31,135 @@
     },
   ]
 
-  const handleSubmit: SubmitFunction = () => {
-    loading = true
-    errors = {}
-    return async ({ update, result }) => {
-      await update({ reset: false })
-      await applyAction(result)
-      loading = false
-      if (result.type === "success") {
-        showSuccess = true
-      } else if (result.type === "failure") {
-        errors = result.data?.errors ?? {}
-      } else if (result.type === "error") {
-        errors = { _: "An error occurred. Please check inputs and try again." }
-      }
+  const handleSubmit = () => {
+    const formData = {
+      firstName: (document.getElementById("first_name") as HTMLInputElement)
+        ?.value,
+      lastName: (document.getElementById("last_name") as HTMLInputElement)
+        ?.value,
+      email: (document.getElementById("email") as HTMLInputElement)?.value,
+      phone: (document.getElementById("phone") as HTMLInputElement)?.value,
+      company: (document.getElementById("company") as HTMLInputElement)?.value,
+      message: (document.getElementById("message") as HTMLTextAreaElement)
+        ?.value,
+      signature: signature,
     }
+
+    // Send the form data to your server or perform any desired action
+    console.log(formData)
+  }
+
+  const handlePointerDown = (event: PointerEvent) => {
+    if (!ctx) return
+    writingMode = true
+    ctx.beginPath()
+    const [positionX, positionY] = getCursorPosition(event)
+    ctx.moveTo(positionX, positionY)
+  }
+
+  const handlePointerUp = () => {
+    writingMode = false
+  }
+
+  const handlePointerMove = (event: PointerEvent) => {
+    if (!writingMode || !ctx) return
+    const [positionX, positionY] = getCursorPosition(event)
+    ctx.lineTo(positionX, positionY)
+    ctx.stroke()
+  }
+
+  const getCursorPosition = (event: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect()
+    const positionX = event.clientX - rect.x
+    const positionY = event.clientY - rect.y
+    return [positionX, positionY]
+  }
+
+  const clearPad = () => {
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    signature = null
+  }
+
+  $: if (canvas && !ctx) {
+    ctx = canvas.getContext("2d")
+    ctx.lineWidth = 1 // Adjust the line width as desired
+    ctx.lineJoin = ctx.lineCap = "round"
   }
 </script>
 
-<div
-  class="flex flex-col lg:flex-row mx-auto my-4 min-h-[70vh] place-items-center lg:place-items-start place-content-center"
->
-  <div
-    class="max-w-[400px] lg:max-w-[500px] flex flex-col place-content-center p-4 lg:mr-8 lg:mb-8 lg:min-h-[70vh]"
-  >
-    <div class="px-6">
-      <h1 class="text-2xl lg:text-4xl font-bold mb-4">Contact Us</h1>
-      <p class="text-lg">Talk to one of our service professionals to:</p>
-      <ul class="list-disc list-outside pl-6 py-4 space-y-1">
-        <li class="">Get a live demo</li>
-        <li class="">Discuss your specific needs</li>
-        <li>Get a quote</li>
-        <li>Answer any technical questions you have</li>
-      </ul>
-      <p>Once you complete the form, we'll reach out to you! *</p>
-      <p class="text-sm pt-8">
-        *Not really for this demo page, but you should say something like that
-        😉
-      </p>
-    </div>
-  </div>
+<div class="flex justify-center items-center min-h-screen">
+  <div class="w-full max-w-md p-6">
+    <h1 class="text-3xl font-serif mb-6 text-center text-gray-700">
+      Write me a letter
+    </h1>
+    <form class="space-y-4" on:submit|preventDefault={handleSubmit}>
+      {#each formFields as field}
+        <div>
+          <label for={field.id} class="block font-serif mb-1 text-gray-700">
+            {field.label}
+          </label>
+          {#if field.inputType === "textarea"}
+            <textarea
+              id={field.id}
+              name={field.id}
+              autocomplete={field.autocomplete}
+              rows={4}
+              class="w-full p-2 font-serif text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required={field.label.includes("*")}
+            />
+          {:else}
+            <input
+              id={field.id}
+              name={field.id}
+              type={field.inputType}
+              autocomplete={field.autocomplete}
+              class="w-full p-2 font-serif text-gray-700 bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required={field.label.includes("*")}
+            />
+          {/if}
+        </div>
+      {/each}
 
-  <div
-    class="flex flex-col flex-grow m-4 lg:ml-10 min-w-[300px] stdphone:min-w-[360px] max-w-[400px] place-content-center lg:min-h-[70vh]"
-  >
-    {#if showSuccess}
-      <div class="flex flex-col place-content-center lg:min-h-[70vh]">
-        <div
-          class="card card-bordered shadow-lg py-6 px-6 mx-2 lg:mx-0 lg:p-6 mb-10"
+      <div>
+        <label for="signature" class="block font-serif mb-1 text-gray-700"
+          >Signature</label
         >
-          <div class="text-2xl font-bold mb-4">Thank you!</div>
-          <p class="">We've received your message and will be in touch soon.</p>
+        <div class="relative">
+          <canvas
+            height="150"
+            width="400%"
+            bind:this={canvas}
+            on:pointerdown={handlePointerDown}
+            on:pointerup={handlePointerUp}
+            on:pointermove={handlePointerMove}
+            class="rounded-md bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            class="absolute right-2 top-2 text-gray-500 hover:text-gray-700 font-serif"
+            on:click|preventDefault={clearPad}
+            disabled={!signature}
+          >
+            Clear
+          </button>
         </div>
       </div>
-    {:else}
-      <div class="card card-bordered shadow-lg p-4 pt-6 mx-2 lg:mx-0 lg:p-6">
-        <form
-          class="form-widget flex flex-col"
-          method="POST"
-          action="?/submitContactUs"
-          use:enhance={handleSubmit}
-        >
-          {#each formFields as field}
-            <label for={field.id}>
-              <div class="flex flex-row">
-                <div class="text-base font-bold">{field.label}</div>
-                {#if errors[field.id]}
-                  <div class="text-red-600 flex-grow text-sm ml-2 text-right">
-                    {errors[field.id]}
-                  </div>
-                {/if}
-              </div>
-              {#if field.inputType === "textarea"}
-                <textarea
-                  id={field.id}
-                  name={field.id}
-                  autocomplete={field.autocomplete}
-                  rows={4}
-                  class="{errors[field.id]
-                    ? 'input-error'
-                    : ''} h-24 input-sm mt-1 input input-bordered w-full mb-3 text-base py-4"
-                ></textarea>
-              {:else}
-                <input
-                  id={field.id}
-                  name={field.id}
-                  type={field.inputType}
-                  autocomplete={field.autocomplete}
-                  class="{errors[field.id]
-                    ? 'input-error'
-                    : ''} input-sm mt-1 input input-bordered w-full mb-3 text-base py-4"
-                />
-              {/if}
-            </label>
-          {/each}
 
-          {#if Object.keys(errors).length > 0}
-            <p class="text-red-600 text-sm mb-2">
-              Please resolve above issues.
-            </p>
-          {/if}
-
-          <button class="btn btn-primary {loading ? 'btn-disabled' : ''}"
-            >{loading ? "Submitting" : "Submit"}</button
-          >
-        </form>
-      </div>
-    {/if}
+      <button
+        type="submit"
+        class="w-full bg-blue-500 text-white font-serif py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={!signature}
+      >
+        Submit
+      </button>
+    </form>
   </div>
 </div>
+
+<style>
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+</style>
